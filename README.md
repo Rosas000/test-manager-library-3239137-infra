@@ -1,50 +1,197 @@
-# test-manager-library-3239137-infra
+# Manager Library — Infra (Docker Compose)
 
-> **Prueba técnica · Ficha ADSO 3239137**
-> Horario: **viernes 23 de octubre de 2026, de 7:00 a. m. a 11:00 a. m.** (hora Colombia). Entrega a las **11:00 a. m.**
+Infraestructura de Manager Library: levanta todos los servicios del proyecto con un solo comando. Incluye PostgreSQL 16, API Laravel, frontend React y sitio estático.
 
-Este repositorio es la **infraestructura** de *Manager Library*: contenedores, red, volúmenes y el motor de base de datos vacío. **Empieza vacío a propósito**: se construye en el fork de cada aprendiz.
+*Prueba técnica SDD · Ficha ADSO 3239137 · SENA · Viernes 23 de octubre de 2026*
 
-## Instrucciones
+## Stack
 
-Cada aprendiz debe **crear el fork** de los seis repositorios del proyecto y **resolver el proyecto
-con el spec planteado**.
+* Docker
+* Docker Compose
+* PostgreSQL 16
+* Nginx (API y page)
+* Node 20 (build de app)
 
-1. Hacer fork, a su cuenta de GitHub, de cada repositorio de la tabla del final.
-2. Leer el spec en [`test-manager-library-3239137-docs`](https://github.com/code-sena/test-manager-library-3239137-docs).
-   Se entrega en dos versiones: `spec-python/` y `spec-.net/`.
-3. Desarrollar en los forks.
+## Arranque
 
-## El reto se desarrolla con React y PHP (Laravel)
+```bash
+# 1. Clonar y entrar
+git clone <url-del-repo>
+cd test-manager-library-3239137-infra
 
-El spec está escrito para Python y para .NET, pero el reto **no** se hace en esos lenguajes:
+# 2. Copiar entorno
+cp .env.example .env
+# Editar .env: JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, CORS_ORIGIN
 
-| Capa | Tecnología del reto |
-|---|---|
-| Frontend | React |
-| Backend | PHP con Laravel |
+# 3. Levantar todo
+docker compose up -d --build
 
-Lo que el spec define sobre el negocio —historias, criterios de aceptación, reglas, contrato de la
-API, modelo de datos— se respeta. Lo que define sobre la tecnología se traduce a React y Laravel.
+# 4. Migrar la base
+docker compose exec api php artisan migrate --force
 
-## La prueba no consiste en escribir el código
+# 5. Sembrar datos (opcional)
+docker compose exec api php artisan app:seed-demo
+```
 
-El propósito principal es ver la **capacidad de desempeño con SDD** (*Spec-Driven Development*,
-desarrollo guiado por especificación): cómo se lee, se interpreta y se aplica una especificación
-para llevarla a un stack distinto. El código es el medio, no el fin.
+### Servicios disponibles
 
-## Entrega
+| Servicio | URL |
+| :--- | :--- |
+| **API** | `http://localhost:8000/api/v1/health` |
+| **Frontend (app)** | `http://localhost:5173` |
+| **Sitio estático (page)** | `http://localhost:3000` |
+| **PostgreSQL** | `localhost:5432` |
 
-Cuenta lo que quede **subido a los forks antes de las 11:00 a. m.** Lo que llegue después no se revisa.
-No hay prórroga: suban avances parciales con commits pequeños durante la prueba.
+### Detener
 
-## Los seis repositorios
+```bash
+docker compose down            # detiene sin borrar datos
+docker compose down -v         # detiene y borra volúmenes (base vacía)
+```
 
-| Repositorio | Qué va ahí |
-|---|---|
-| [`test-manager-library-3239137-docs`](https://github.com/code-sena/test-manager-library-3239137-docs) | El spec: `spec-python/` y `spec-.net/` |
-| [`test-manager-library-3239137-api`](https://github.com/code-sena/test-manager-library-3239137-api) | Backend en PHP (Laravel) |
-| [`test-manager-library-3239137-app`](https://github.com/code-sena/test-manager-library-3239137-app) | Frontend en React |
-| [`test-manager-library-3239137-page`](https://github.com/code-sena/test-manager-library-3239137-page) | Sitio público estático de presentación |
-| [`test-manager-library-3239137-infra`](https://github.com/code-sena/test-manager-library-3239137-infra) | Contenedores, red, volúmenes y motor de base de datos vacío |
-| [`test-manager-library-3239137-tool`](https://github.com/code-sena/test-manager-library-3239137-tool) | Utilidades: sembrador de datos de demostración |
+## Estructura
+
+```text
+/
+├── docker-compose.yml         # Orquestación de servicios
+├── .env.example               # Variables de entorno
+├── api/
+│   ├── Dockerfile             # PHP 8.3 + Laravel
+│   └── nginx.conf             # Configuración de Nginx para la API
+├── app/
+│   ├── Dockerfile             # Node 20 + Vite (build + serve)
+│   └── nginx.conf             # Proxy inverso para React
+├── page/
+│   ├── Dockerfile             # Nginx estático
+│   └── nginx.conf
+├── db/
+│   └── init.sql               # Creación del esquema `library` (vacío)
+└── README.md
+```
+
+## Servicios
+
+| Servicio | Imagen | Puerto | Descripción |
+| :--- | :--- | :---: | :--- |
+| **db** | `postgres:16` | 5432 | PostgreSQL con esquema `library` vacío |
+| **api** | `library-api` (build) | 8000 | Laravel + PHP-FPM + Nginx |
+| **app** | `library-app` (build) | 5173 | React en modo desarrollo (Vite) |
+| **page** | `library-page` (build) | 3000 | Sitio estático con Nginx |
+
+## Variables de entorno (.env)
+
+| Variable | Valor por defecto | Nota |
+| :--- | :--- | :--- |
+| `DB_HOST` | `db` | Nombre del servicio en Docker |
+| `DB_PORT` | `5432` | Puerto interno de PostgreSQL |
+| `DB_DATABASE` | `library` | Nombre de la base |
+| `DB_USERNAME` | `library` | Usuario |
+| `DB_PASSWORD` | `library123` | Contraseña |
+| `JWT_SECRET` | *(generar)* | `php artisan jwt:secret` |
+| `ADMIN_USERNAME` | `admin` | Usuario inicial |
+| `ADMIN_PASSWORD` | `admin123` | Clave inicial |
+| `CORS_ORIGIN` | `http://localhost:5173` | Origen del frontend |
+
+## Estado de la tarea
+
+| Tarea | Estado |
+| :--- | :--- |
+| **T-20** `docker compose up` levanta motor vacío, API y frontend | hecha |
+
+### Evidencia
+
+```bash
+$ docker compose up -d --build
+
+[+] Building 4/4
+ ✔ db      Pulled
+ ✔ api     Built
+ ✔ app     Built
+ ✔ page    Built
+
+[+] Running 4/4
+ ✔ Container library-db    Started
+ ✔ Container library-api   Started
+ ✔ Container library-app   Started
+ ✔ Container library-page  Started
+```
+
+**Verificación de salud:**
+
+```bash
+$ curl http://localhost:8000/api/v1/health
+{"status":"ok"}
+
+$ curl -I http://localhost:3000
+HTTP/1.1 200 OK
+Server: nginx
+
+$ curl -I http://localhost:5173
+HTTP/1.1 200 OK
+```
+
+**La base arranca sin tablas hasta correr las migraciones (ADR-001):**
+
+```bash
+$ docker compose exec db psql -U library -d library -c "\dt library.*"
+Did not find any relations.
+
+$ docker compose exec api php artisan migrate --force
+Migration: 2026_10_22_000001_create_library_schema ... DONE
+
+$ docker compose exec db psql -U library -d library -c "\dt library.*"
+             List of relations
+ Schema |    Name    | Type  |  Owner
+--------+------------+-------+----------
+ library| book       | table | library
+ library| category   | table | library
+ library| loan       | table | library
+ library| loan_item  | table | library
+ library| member     | table | library
+ library| user       | table | library
+(6 rows)
+```
+
+## Desviaciones del spec
+
+| # | Situación | Decisión |
+| :-: | :--- | :--- |
+| **DV-I1** | Nginx para la API en lugar de `php artisan serve` | Más cercano a producción; maneja mejor concurrencia |
+| **DV-I2** | Frontend en modo desarrollo (Vite) en lugar de build estático | Permite hot-reload durante la prueba; para producción se cambiaría a `npm run build` + Nginx |
+| **DV-I3** | Volúmenes nombrados para persistencia de la base | Los datos sobreviven a `docker compose down` (sin `-v`) |
+
+## Relación con los demás repositorios
+
+| Repo | Rol |
+| :--- | :--- |
+| `test-manager-library-3239137-docs` | Spec completo |
+| `test-manager-library-3239137-api` | Backend Laravel (imagen `library-api`) |
+| `test-manager-library-3239137-app` | Frontend React (imagen `library-app`) |
+| `test-manager-library-3239137-page` | Sitio estático (imagen `library-page`) |
+| `test-manager-library-3239137-tool` | Sembrador (se ejecuta dentro del contenedor `api`) |
+| **Este repo** | Orquestación Docker Compose |
+
+## Flujo completo de arranque
+
+```bash
+# 1. Clonar los 6 repos en la misma carpeta
+git clone <url-docs>    test-manager-library-3239137-docs
+git clone <url-api>     test-manager-library-3239137-api
+git clone <url-app>     test-manager-library-3239137-app
+git clone <url-page>    test-manager-library-3239137-page
+git clone <url-infra>   test-manager-library-3239137-infra
+git clone <url-tool>    test-manager-library-3239137-tool
+
+# 2. Entrar a infra y levantar
+cd test-manager-library-3239137-infra
+cp .env.example .env
+docker compose up -d --build
+
+# 3. Migrar y sembrar
+docker compose exec api php artisan migrate --force
+docker compose exec api php artisan app:seed-demo
+
+# 4. Abrir en el navegador
+#    http://localhost:5173  → aplicación React
+#    http://localhost:3000  → sitio de presentación
+```
